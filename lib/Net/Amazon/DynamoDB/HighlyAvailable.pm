@@ -148,14 +148,37 @@ sub scan {
     confess "unable to connect and scan from any dynamodb";
 }
 
+sub scan_as_hashref {
+    my ($self, @args) = @_;
+
+    my $dynamodbs = $self->dynamodbs;
+    my $success   = 0;
+    my @items;
+
+    for my $dynamodb (@$dynamodbs) {
+        my $res;
+
+        try { 
+            $res = $dynamodb->scan_as_hashref(@args);
+        }
+        catch {
+            warn "caught error: " . p $_;
+        };
+
+        return $res if $res;
+    }
+
+    confess "unable to connect and scan from any dynamodb";
+}
+
 sub sync_regions {
     my ($self, @args) = @_;
 
     my $dynamodb0 = $self->dynamodbs->[0];
     my $dynamodb1 = $self->dynamodbs->[1];
 
-    my $scan0 = $dynamodb0->scan(@args)->get->{Items};
-    my $scan1 = $dynamodb1->scan(@args)->get->{Items};
+    my $scan0 = $dynamodb0->scan(@args);
+    my $scan1 = $dynamodb1->scan(@args);
 
     my $items0 = $self->_process_items($scan0);
     my $items1 = $self->_process_items($scan1);
@@ -168,96 +191,58 @@ sub sync_regions {
 }
 
 sub _process_items {
-    my ($self, $items) = @_;
+    my ($self, $items_arrayref) = @_;
 
-    my $key = $self->primary_key;
-    my $definitions;
+    my $hash_key_name = $self->hash_key;
+    my $items_hashref;
 
-    for my $item (@$items) {
-        my $primary_key = delete($item->{$key})->{S};
-
-        for my $attr (keys %$item) {
-            my $type_value = $item->{$attr};
-            my ($type) = keys %$type_value;
-            $definitions->{$primary_key}->{$attr} = $item->{$attr}->{$type};
-        }
-
-        $definitions->{$primary_key}->{$key} = $primary_key;
+    for my $item (@$items_arrayref) {
+        my $hash_key_value = $item->{$hash_key_name};
+        $items_hashref->{$hash_key_value} = $item;
     }
 
-
-    return $definitions;
+    return $items_hashref;
 }
 
 sub _sync_items {
     my ($self, $from_ddb, $to_ddb, $from_items, $to_items) = @_;
 
-    my $primary_key_name = $self->primary_key;
+    my $hash_key_name = $self->hash_key;
 
     for my $from_key (keys %$from_items) {
-        my $from_value = $from_items->{$from_key};
-        my $to_value = $to_items->{$from_key};
-        if (!$to_value) {
-            $to_value = {last_updated => '1900-01-01T00:00:00'};
-            $to_items->{$from_key} = $to_value;
+        my $from_val = $from_items->{$from_key};
+        my $to_val   = $to_items->{$from_key};
+
+        if (!$to_val) {
+            $to_val = {last_updated => '1900-01-01T00:00:00'};
+            $to_items->{$from_key} = $to_val;
         }
 
-        my $updated0 = $from_value->{last_updated};
-        my $updated1 = $to_value->{last_updated};
+        my $updated0 = $from_val->{last_updated};
+        my $updated1 = $to_val->{last_updated};
 
         # don't need to sync if the items are the same age and not deleted
-        next if $updated0 eq $updated1 && !$to_value->{deleted};
+        next if $updated0 eq $updated1 && !$to_val->{deleted};
 
         # find the newest item
-        my $newest = $updated0 gt $updated1
-            ? $from_value
-            : $to_value;
+        my ($newest, $ddb) = $updated0 gt $updated1
+            ? ($from_val, $to_ddb)
+            : ($to_val,   $from_ddb);
 
         # sync newest item to the other region
         if ($newest->{deleted}) {
-            $self->permanent_delete( $newest->{$primary_key_name} );
+            my $hash_key_value = $newest->{$hash_key_name};
+            $self->permanent_delete($hash_key_name => $hash_key_value);
         }
         else {
-            # TODO: this could be more efficient by syncing to just the ddb
-            # that needs it
-            $self->put(%$newest);
+            $ddb->put(Item => $newest);
         }
 
         # Lets say we are syncing from $dynamodb0 -> $dynamodb1. This prevents
         # us from re syncing this item when we sync in the other direction from
         # $dynamodb1 -> $dynamodb0
-        $to_value->{last_updated} = $from_value->{last_updated};
+        $to_val->{last_updated} = $from_val->{last_updated};
     }
-}
-
-sub items {
-    my ($self, @args) = @_;
-
-    my $human_items = {};
-
-    my $items = $self->scan(@args)->{Items};
-    my $primary_key_name = $self->primary_key;
-
-    # convert $items to something more human readable
-    for my $item (@$items) {
-        my $primary_key = delete($item->{$primary_key_name})->{S};
-
-        for my $attr (keys %$item) {
-            my $type_value = $item->{$attr};
-            my ($type) = keys %$type_value;
-            $human_items->{$primary_key}->{$attr} = $item->{$attr}->{$type};
-        }
-
-        # inflate json values
-        my $new_item                 = $human_items->{$primary_key};
-        my %inflated_item            = $self->inflate(%$new_item);
-        $human_items->{$primary_key} = \%inflated_item;
-
-        delete $human_items->{$primary_key}
-            if $human_items->{$primary_key}->{deleted};
-    }
-
-    return %$human_items;
 }
 
 1;
@@ -274,7 +259,8 @@ Net::Amazon::DynamoDB::HighlyAvailable - Sync data across multiple regions
     # the regions param must have a length of 2
     my $table = Amazon::DynamoDB::HighlyAvailable->new(
         table             => $table,       # required
-        primary_key       => $primary_key, # required
+        hash_key          => $hash_key,    # required
+        range_key         => $range_key,
         regions           => [qw/us-east-1 us-west-1/],
         access_key_id     => ...,          # default: $ENV{AWS_ACCESS_KEY};
         secret_access_key => ...,          # default: $ENV{AWS_SECRET_KEY};

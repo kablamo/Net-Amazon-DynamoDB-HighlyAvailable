@@ -1,12 +1,12 @@
 use Test::Most;
 
-use Amazon::DynamoDB::Simple;
+use Net::Amazon::DynamoDB::HighlyAvailable;
 
 my $table;
 my $node   = 'boopNode';  # unique name
 my $flavor = 'f';
 my $cfg    = {
-    node          => $node,
+    super         => $node,
     flavor        => $flavor,
     region        => 'r',
     zone          => 'z',
@@ -22,39 +22,37 @@ my $cfg    = {
 };
 
 subtest 'setup' => sub {
-    $table = Amazon::DynamoDB::Simple->new(
-        table       => 'server_definitions',
-        primary_key => 'node',
+    $table = Net::Amazon::DynamoDB::HighlyAvailable->new(
+        table    => 'test',
+        hash_key => 'super',
+        regions  => [qw/us-east-1 us-west-1/],
     );
 
     # permanently delete item from all dynamodbs
-    $table->permanent_delete($node);
+    $table->permanent_delete(super => $node);
 
     pass "done";
 };
 
 subtest 'sync: update old records' => sub {
     my %item = (
-        node       => $node,
+        super      => $node,
         flavor     => $cfg->{flavor},
         region     => $cfg->{region},
         zone       => $cfg->{zone},
     );
 
     # save to all dynamodbs
-    $table->put(%item);
+    $table->put(Item => \%item);
     sleep 1;
 
     # update one dynamodb
-    $table->dynamodbs->[0]->put_item(
-        TableName => 'server_definitions',
-        Item      => {
-            %item, 
-            zone         => 'z',
-            deleted      => 0,
-            last_updated => DateTime->now() . "",
-        },
-    );
+    $table->dynamodbs->[0]->put(Item => {
+        %item, 
+        zone         => 'z',
+        deleted      => 0,
+        last_updated => DateTime->now() . "",
+    });
 
     # sync
     $table->sync_regions;
@@ -62,11 +60,7 @@ subtest 'sync: update old records' => sub {
     # check that sync worked
     my $saved_items = {};
     for my $i (0, 1) {
-        $saved_items->{$i} = $table->dynamodbs->[$i]->get_item(
-            sub { shift },
-            TableName => 'server_definitions',
-            Key       => { node => $node },
-        )->get();
+        $saved_items->{$i} = $table->dynamodbs->[$i]->get(super => $node);
 
         cmp_deeply $saved_items->{$i}, {
             %item,
@@ -77,26 +71,23 @@ subtest 'sync: update old records' => sub {
     }
 
     # cleanup: permanently delete item from all dynamodbs
-    $table->permanent_delete($node);
+    $table->permanent_delete(super => $node);
 };
 
 subtest 'sync: create new records' => sub {
     my %item = (
-        node   => $node,
+        super  => $node,
         flavor => $cfg->{flavor},
         region => $cfg->{region},
         zone   => $cfg->{zone},
     );
 
     # create item on one dynamodb
-    $table->dynamodbs->[0]->put_item(
-        TableName => 'server_definitions',
-        Item      => {
-            %item, 
-            deleted      => 0,
-            last_updated => DateTime->now() . "",
-        },
-    );
+    $table->dynamodbs->[0]->put(Item => {
+        %item, 
+        deleted      => 0,
+        last_updated => DateTime->now() . "",
+    });
 
     # sync
     $table->sync_regions;
@@ -104,11 +95,7 @@ subtest 'sync: create new records' => sub {
     # check that sync worked
     my $saved_items = {};
     for my $i (0, 1) {
-        $saved_items->{$i} = $table->dynamodbs->[$i]->get_item(
-            sub { shift },
-            TableName => 'server_definitions',
-            Key       => { node => $node },
-        )->get();
+        $saved_items->{$i} = $table->dynamodbs->[$i]->get(super => $node);
 
         cmp_deeply $saved_items->{$i}, { 
             %item,
@@ -118,7 +105,7 @@ subtest 'sync: create new records' => sub {
     }
 
     # cleanup: permanently delete item from all dynamodbs
-    $table->permanent_delete($node);
+    $table->permanent_delete(super => $node);
 };
 
 done_testing;
