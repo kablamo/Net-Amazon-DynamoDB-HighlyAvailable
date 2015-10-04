@@ -1,5 +1,5 @@
 {
-   "abstract" : "It's new $module",
+   "abstract" : "Sync data across multiple regions",
    "author" : [
       "Eric Johnson <eric.git@iijo.org>"
    ],
@@ -42,6 +42,7 @@
       },
       "runtime" : {
          "requires" : {
+            "Net::Amazon::DynamoDB::Table" : "0",
             "perl" : "5.008001"
          }
       },
@@ -52,5 +53,16 @@
       }
    },
    "release_status" : "unstable",
+   "resources" : {
+      "bugtracker" : {
+         "web" : "https://github.com/kablamo/Net-Amazon-DynamoDB-HighlyAvailable/issues"
+      },
+      "homepage" : "https://github.com/kablamo/Net-Amazon-DynamoDB-HighlyAvailable",
+      "repository" : {
+         "type" : "git",
+         "url" : "git://github.com/kablamo/Net-Amazon-DynamoDB-HighlyAvailable.git",
+         "web" : "https://github.com/kablamo/Net-Amazon-DynamoDB-HighlyAvailable"
+      }
+   },
    "version" : "0.01"
 }
