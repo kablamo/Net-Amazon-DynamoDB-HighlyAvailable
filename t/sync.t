@@ -1,4 +1,4 @@
-use Test::Most;
+use Test::Most skip_all => 'third party tests';
 
 use Net::Amazon::DynamoDB::HighlyAvailable;
 
