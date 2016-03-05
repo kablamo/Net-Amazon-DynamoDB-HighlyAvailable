@@ -7,7 +7,7 @@ use Moo;
 use Try::Tiny;
 use DateTime;
 
-our $VERSION="0.01";
+our $VERSION="0.02";
 
 has table       => (is => 'rw', required => 1);
 has hash_key    => (is => 'rw', required => 1);
@@ -16,6 +16,7 @@ has dynamodbs   => (is => 'lazy');
 has regions     => (is => 'rw', required => 1);
 has access_key  => (is => 'rw', lazy => 1, builder => 1);
 has secret_key  => (is => 'rw', lazy => 1, builder => 1);
+has timeout     => (is => 'rw', default => 5);
 
 sub _build_access_key { $ENV{AWS_ACCESS_KEY} }
 sub _build_secret_key { $ENV{AWS_SECRET_KEY} }
@@ -34,6 +35,7 @@ sub _build_dynamodbs {
             range_key  => $self->range_key,
             access_key => $self->access_key,
             secret_key => $self->secret_key,
+            timeout    => $self->timeout,
         );
     }
 
@@ -262,8 +264,9 @@ Net::Amazon::DynamoDB::HighlyAvailable - Sync data across multiple regions
         hash_key          => $hash_key,    # required
         range_key         => $range_key,
         regions           => [qw/us-east-1 us-west-1/],
-        access_key_id     => ...,          # default: $ENV{AWS_ACCESS_KEY};
-        secret_access_key => ...,          # default: $ENV{AWS_SECRET_KEY};
+        access_key_id     => ...,          # default: $ENV{AWS_ACCESS_KEY}
+        secret_access_key => ...,          # default: $ENV{AWS_SECRET_KEY}
+        timeout           => 1,            # default: 5
     );
 
     # create or update an item

@@ -12,8 +12,9 @@ Net::Amazon::DynamoDB::HighlyAvailable - Sync data across multiple regions
         hash_key          => $hash_key,    # required
         range_key         => $range_key,
         regions           => [qw/us-east-1 us-west-1/],
-        access_key_id     => ...,          # default: $ENV{AWS_ACCESS_KEY};
-        secret_access_key => ...,          # default: $ENV{AWS_SECRET_KEY};
+        access_key_id     => ...,          # default: $ENV{AWS_ACCESS_KEY}
+        secret_access_key => ...,          # default: $ENV{AWS_SECRET_KEY}
+        timeout           => 1,            # default: 5
     );
 
     # create or update an item

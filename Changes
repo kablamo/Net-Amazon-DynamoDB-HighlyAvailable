@@ -2,6 +2,9 @@ Revision history for Perl extension Net-Amazon-DynamoDB-HighlyAvailable
 
 {{$NEXT}}
 
+0.02 2016-03-05T01:35:53Z
+    - added a timeout attribute
+
 0.01 2015-11-02T21:54:49Z
     - original version
 
