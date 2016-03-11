@@ -1,8 +1,6 @@
 package Net::Amazon::DynamoDB::HighlyAvailable;
 use Net::Amazon::DynamoDB::Table;
 use Carp qw/cluck confess carp croak/;
-use DDP;
-use JSON::XS;
 use Moo;
 use Try::Tiny;
 use DateTime;
