@@ -42,7 +42,10 @@
       },
       "runtime" : {
          "requires" : {
+            "DateTime" : "0",
+            "Moo" : "0",
             "Net::Amazon::DynamoDB::Table" : "0",
+            "Try::Tiny" : "0",
             "perl" : "5.008001"
          }
       },
@@ -64,5 +67,5 @@
          "web" : "https://github.com/kablamo/Net-Amazon-DynamoDB-HighlyAvailable"
       }
    },
-   "version" : "0.02"
+   "version" : "0.03"
 }
